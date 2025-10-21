@@ -1,0 +1,25 @@
+[Unit]
+Description=My Service - Checkout API
+After=my-service-infra.target
+Requires=my-service-infra.target
+PartOf=my-service-all.target
+
+[Service]
+Type=exec
+User=nobody
+Group=nobody
+WorkingDirectory=/opt/my-service/apps/checkout-api
+ExecStart=/opt/my-service/apps/checkout-api/checkout-api
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/my-service/checkout-api/stdout.log
+StandardError=append:/var/log/my-service/checkout-api/stderr.log
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/log/my-service/checkout-api
+
+[Install]
+WantedBy=multi-user.target

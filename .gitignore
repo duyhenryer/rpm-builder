@@ -1,0 +1,23 @@
+# Build artifacts
+dist/
+build/
+rpm/BUILD/
+rpm/BUILDROOT/
+rpm/RPMS/
+rpm/SRPMS/
+rpm/SOURCES/
+
+# App binaries
+apps/*/hello-api
+apps/*/checkout-api
+
+# Docker
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
