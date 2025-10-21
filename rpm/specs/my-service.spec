@@ -3,7 +3,7 @@ Version:        1.0.0
 Release:        1
 Summary:        My Service Platform - All Services
 License:        MIT
-URL:            https://github.com/your-org/rpm-builder
+URL:            https://github.com/duyhenryer/rpm-builder
 Source0:        hello-api
 Source1:        checkout-api
 Source2:        my-service.conf
@@ -104,15 +104,6 @@ else
 fi
 
 echo "My Service Platform installed successfully!"
-echo "Services:"
-echo "  - hello-api: http://localhost:8080/"
-echo "  - checkout-api: http://localhost:8081/"
-echo "  - nginx: http://localhost:80/"
-echo ""
-echo "Control all services:"
-echo "  systemctl start my-service-all.target"
-echo "  systemctl stop my-service-all.target"
-echo "  systemctl status my-service-all.target"
 
 %preun
 if [ $1 -eq 0 ]; then
@@ -137,8 +128,4 @@ else
 fi
 
 %changelog
-* Tue Oct 21 2025 - 1.0.0-1
-- Initial release of My Service Platform
-- Unified RPM package with all services
-- Systemd target orchestration
-- Nginx reverse proxy integration
+
