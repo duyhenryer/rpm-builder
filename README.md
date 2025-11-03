@@ -1,52 +1,64 @@
-# POC - RPM Builder
+# Micro Platform - RPM Builder
 
 A complete service platform packaged as a single RPM containing multiple Go APIs, Nginx reverse proxy configuration, and systemd orchestration.
 
 ## Overview
 
-This project demonstrates how to build a unified RPM package.
+This project demonstrates how to build a unified RPM package with:
+- **Multiple Go APIs**: `user-api` (port 8080), `checkout-api` (port 8081), `voter-api` (port 8082)
+- **Nginx reverse proxy**: Routes traffic on port 80
+- **Redis cache**: In-memory caching on port 6379
+- **Systemd orchestration**: Target-based service management
+- **Docker-based build**: Rocky Linux 9 environment
+- **Single deployment**: One RPM installs everything
 
 ## Project Structure
 
 ```
 rpm-builder/
 ├── apps/                    # Go applications source code
-│   ├── hello-api/
+│   ├── user-api/
 │   │   ├── main.go         # HTTP server (port 8080)
 │   │   └── go.mod
-│   └── checkout-api/
-│       ├── main.go         # HTTP server (port 8081)
+│   ├── checkout-api/
+│   │   ├── main.go         # HTTP server (port 8081)
+│   │   └── go.mod
+│   └── voter-api/
+│       ├── main.go         # HTTP server (port 8082)
 │       └── go.mod
 │
 ├── infra/                   # Infrastructure configurations
-│   └── nginx/
-│       └── my-service.conf # Nginx reverse proxy config
+│   ├── nginx/
+│   │   └── micro-platform.conf # Nginx reverse proxy config
+│   └── redis/
+│       └── micro-platform-redis.conf # Redis cache configuration
 │
 ├── rpm/
 │   ├── specs/
-│   │   └── my-service.spec # Single RPM specification
+│   │   └── micro-platform.spec # Single RPM specification
 │   ├── files/
 │   │   └── systemd/
-│   │       ├── my-service-hello-api.service
-│   │       ├── my-service-checkout-api.service
-│   │       ├── my-service-infra.target
-│   │       └── my-service-all.target
+│   │       ├── micro-platform-user-api.service
+│   │       ├── micro-platform-checkout-api.service
+│   │       ├── micro-platform-voter-api.service
+│   │       ├── micro-platform-infra.target
+│   │       └── micro-platform-all.target
 │   └── SOURCES/            # Auto-generated during build
 │
-├── docker/
-│   └── Dockerfile          # Rocky Linux 9 + rpmbuild tools
+├── Dockerfile              # Rocky Linux 9 + rpmbuild tools
 │
 ├── scripts/
 │   └── build.sh            # Main build script
 │
 ├── dist/                   # Output RPM
-│   └── my-service-1.0.0-1.x86_64.rpm
+│   └── micro-platform-1.0.0-1.x86_64.rpm
 │
 ├── build/                  # Intermediate build artifacts
 │   └── bin/
 │
 ├── Makefile                # Build automation
-└── README.md               # This documentation
+├── README.md               # This documentation
+└── .gitattributes          # Git line ending configuration
 ```
 
 ## Quick Start
@@ -55,23 +67,31 @@ rpm-builder/
 # Build single RPM with all services
 make build
 
-# Show manual testing instructions
-make test-manual
-
 # Clean build artifacts
 make clean
 ```
+
+## Available Makefile Targets
+
+| Target | Description |
+|--------|-------------|
+| `make help` | Show help menu |
+| `make docker-build` | Build Docker image (rpm-builder:latest) |
+| `make build` | Build single RPM (auto-calls docker-build) |
+| `make clean` | Clean all build artifacts |
 
 ## Architecture
 
 ### Systemd Service Hierarchy
 
 ```
-my-service-all.target (Master orchestrator)
-    ├── my-service-infra.target
-    │   └── nginx.service (system service)
-    ├── my-service-hello-api.service
-    └── my-service-checkout-api.service
+micro-platform-all.target (Master orchestrator)
+    ├── micro-platform-infra.target
+    │   ├── nginx.service (system service)
+    │   └── redis.service (system service)
+    ├── micro-platform-user-api.service
+    ├── micro-platform-checkout-api.service
+    └── micro-platform-voter-api.service
 ```
 
 ### Port Mapping
@@ -79,73 +99,155 @@ my-service-all.target (Master orchestrator)
 | Service | Port | Description |
 |---------|------|-------------|
 | Nginx | 80 | Reverse proxy (main entry point) |
-| hello-api | 8080 | Direct API access |
+| Redis | 6379 | In-memory cache |
+| user-api | 8080 | Direct API access |
 | checkout-api | 8081 | Direct API access |
+| voter-api | 8082 | Direct API access |
+
+### URL Routing
+
+| URL | Target | Description |
+|-----|--------|-------------|
+| `http://server/` | JSON API info | Platform status and available APIs |
+| `http://server/user/` | user-api | Via nginx proxy |
+| `http://server/checkout/` | checkout-api | Via nginx proxy |
+| `http://server/vote/` | voter-api | Via nginx proxy |
+| `http://server/health` | Nginx health | Platform health check |
+| `http://server:8080/` | user-api | Direct access |
+| `http://server:8081/` | checkout-api | Direct access |
+| `http://server:8082/` | voter-api | Direct access |
+
+### How Dependencies Work
+
+**With dnf/yum (Recommended):**
+```bash
+dnf install micro-platform-1.0.0-1.x86_64.rpm
+# ✅ Automatically installs nginx, redis, and all dependencies
+```
+
+**With rpm directly:**
+```bash
+rpm -ivh micro-platform-1.0.0-1.x86_64.rpm
+# ❌ Fails if dependencies not installed
+# error: Failed dependencies: nginx >= 1.20 is needed, redis >= 6.0 is needed
+```
+
 
 ## Installation & Usage
 
-### Prerequisites
+## Installation Methods
+
+### Method 1: Using dnf (Recommended - Auto Install Dependencies)
 
 ```bash
-# Install nginx (required dependency)
-dnf install nginx
+# Single command - nginx installed automatically
+dnf install dist/micro-platform-1.0.0-1.x86_64.rpm
 ```
+
+✅ **Advantages:**
+- Automatically installs nginx and redis if not present
+- Resolves all dependencies automatically
+- Same behavior as mem-devops project
+
+### Method 2: Using rpm (Manual Dependency Management)
+
+```bash
+# Step 1: Install dependencies manually first
+dnf install nginx redis
+
+# Step 2: Install RPM
+rpm -ivh dist/micro-platform-1.0.0-1.x86_64.rpm
+```
+
+✅ **Advantages:**
+- More control over nginx and redis versions
+- Better for production deployments
+- Explicit dependency management
 
 ### Install RPM
 
+**Recommended: Using dnf**
 ```bash
-# Install the platform
-rpm -ivh dist/my-service-1.0.0-1.x86_64.rpm
+# Automatically installs nginx, redis, and all dependencies
+dnf install dist/micro-platform-1.0.0-1.x86_64.rpm
+
+# Start services
+systemctl start micro-platform-all.target
 ```
 
 ### Control Services
 
 ```bash
 # Start all services
-systemctl start my-service-all.target
+systemctl start micro-platform-all.target
 
 # Stop all services
-systemctl stop my-service-all.target
+systemctl stop micro-platform-all.target
 
 # Check status
-systemctl status my-service-all.target
+systemctl status micro-platform-all.target
 
 # View logs
-journalctl -u my-service-hello-api.service
-journalctl -u my-service-checkout-api.service
+journalctl -u micro-platform-user-api.service
+journalctl -u micro-platform-checkout-api.service
+journalctl -u micro-platform-voter-api.service
+journalctl -u redis.service
+journalctl -u nginx.service
 ```
 
+### Access Services
+
+After installation, services are available at:
+
+- **Platform Landing**: `http://server/`
+- **User API (via nginx)**: `http://server/user/`
+- **Checkout API (via nginx)**: `http://server/checkout/`
+- **Voter API (via nginx)**: `http://server/vote/`
+- **Health Check**: `http://server/health`
+- **Direct APIs**: `http://server:8080/`, `http://server:8081/`, `http://server:8082/`
+- **Redis**: `localhost:6379` (local access only)
 
 ## File Locations After Install
 
 ```
-/opt/my-service/apps/
-├── hello-api/hello-api
-└── checkout-api/checkout-api
+/opt/micro-platform/apps/
+├── user-api/user-api
+├── checkout-api/checkout-api
+└── voter-api/voter-api
 
-/etc/nginx/conf.d/my-service.conf
+/etc/nginx/conf.d/micro-platform.conf
+/etc/redis/micro-platform-redis.conf
 
 /usr/lib/systemd/system/
-├── my-service-hello-api.service
-├── my-service-checkout-api.service
-├── my-service-infra.target
-└── my-service-all.target
+├── micro-platform-user-api.service
+├── micro-platform-checkout-api.service
+├── micro-platform-voter-api.service
+├── micro-platform-infra.target
+└── micro-platform-all.target
 
-/var/log/my-service/
-├── hello-api/
+/var/log/micro-platform/
+├── user-api/
 ├── checkout-api/
+├── voter-api/
 └── nginx/
 ```
 
+## Build Process
+
+1. **Docker Environment**: Rocky Linux 9 with rpmbuild tools
+2. **Go Compilation**: Build static binaries for all APIs (user-api, checkout-api, voter-api)
+3. **RPM Creation**: Single package with all services and configurations
+4. **Dependencies**: Requires nginx >= 1.20, redis >= 6.0, and systemd
+
 ## Adding New APIs
 
-To add a new API (e.g., `user-api`):
+To add a new API (e.g., `order-api`):
 
 ### 1. Create Application
 
 ```bash
-mkdir -p apps/user-api
-cd apps/user-api
+mkdir -p apps/order-api
+cd apps/order-api
 
 # Create main.go (HTTP server on port 8082)
 # Create go.mod
@@ -155,32 +257,30 @@ cd apps/user-api
 
 Edit `scripts/build.sh`:
 ```bash
-# Add to the loop
-for app in hello-api checkout-api user-api; do
-    # ... existing code
-done
+# Update the apps array
+apps=("user-api" "checkout-api" "voter-api" "order-api")
 ```
 
 ### 3. Create Systemd Service
 
-Create `rpm/files/systemd/my-service-user-api.service`:
+Create `rpm/files/systemd/micro-platform-order-api.service`:
 ```ini
 [Unit]
-Description=My Service - User API
-After=my-service-infra.target
-Requires=my-service-infra.target
-PartOf=my-service-all.target
+Description=Micro Platform - Order API
+After=micro-platform-infra.target
+Requires=micro-platform-infra.target
+PartOf=micro-platform-all.target
 
 [Service]
 Type=exec
 User=nobody
 Group=nobody
-WorkingDirectory=/opt/my-service/apps/user-api
-ExecStart=/opt/my-service/apps/user-api/user-api
+WorkingDirectory=/opt/micro-platform/apps/order-api
+ExecStart=/opt/micro-platform/apps/order-api/order-api
 Restart=always
 RestartSec=10
-StandardOutput=append:/var/log/my-service/user-api/stdout.log
-StandardError=append:/var/log/my-service/user-api/stderr.log
+StandardOutput=append:/var/log/micro-platform/order-api/stdout.log
+StandardError=append:/var/log/micro-platform/order-api/stderr.log
 
 [Install]
 WantedBy=multi-user.target
@@ -188,117 +288,39 @@ WantedBy=multi-user.target
 
 ### 4. Update RPM Spec
 
-Edit `rpm/specs/my-service.spec`:
+Edit `rpm/specs/micro-platform.spec`:
 ```spec
 # Add new Source
-Source7:        user-api
+Source7:        order-api
 
 # Update %install section
-mkdir -p %{buildroot}/opt/my-service/apps/user-api/
-cp %{_sourcedir}/user-api %{buildroot}/opt/my-service/apps/user-api/user-api
+mkdir -p %{buildroot}/opt/micro-platform/apps/order-api/
+cp %{_sourcedir}/order-api %{buildroot}/opt/micro-platform/apps/order-api/order-api
 
 # Update %files section
-/opt/my-service/apps/user-api/**
+/opt/micro-platform/apps/order-api/**
 
 # Update %post section
-chmod +x /opt/my-service/apps/user-api/user-api
+chmod +x /opt/micro-platform/apps/order-api/order-api
 ```
 
 ### 5. Update Nginx Config
 
-Add to `infra/nginx/my-service.conf`:
+Add to `infra/nginx/micro-platform.conf`:
 ```nginx
-upstream user_api {
+upstream order_api {
     server 127.0.0.1:8082;
 }
 
-location /user/ {
-    proxy_pass http://user_api/;
+location /order/ {
+    proxy_pass http://order_api/;
     # ... proxy headers
 }
 ```
 
 ### 6. Update Systemd Targets
 
-Update `my-service-all.target`:
+Update `micro-platform-all.target`:
 ```ini
-Wants=my-service-hello-api.service my-service-checkout-api.service my-service-user-api.service
+Wants=micro-platform-user-api.service micro-platform-checkout-api.service micro-platform-voter-api.service micro-platform-order-api.service
 ```
-
-## Troubleshooting
-
-### Common Issues
-
-**Port already in use:**
-```bash
-# Check port usage
-ss -tuln | grep -E ":(80|8080|8081)"
-# Stop conflicting services
-systemctl stop <service-name>
-```
-
-**Nginx not installed:**
-```bash
-# Install nginx first
-dnf install nginx
-# Then install RPM
-rpm -ivh my-service-1.0.0-1.x86_64.rpm
-```
-
-**Service not starting:**
-```bash
-# Check service status
-systemctl status my-service-all.target
-# Check logs
-journalctl -u my-service-hello-api.service -f
-```
-
-**Nginx config not loaded:**
-```bash
-# Test nginx config
-nginx -t
-# Reload nginx
-systemctl reload nginx
-```
-
-### Log Locations
-
-- **Service logs**: `/var/log/my-service/{hello-api,checkout-api,nginx}/`
-- **Systemd logs**: `journalctl -u my-service-*.service`
-- **Nginx logs**: `/var/log/nginx/`
-
-## Features
-
-- ✅ **Single RPM deployment**: Install once, get all services
-- ✅ **Multiple Go APIs**: Easy to add new services
-- ✅ **Nginx reverse proxy**: Professional routing
-- ✅ **Systemd orchestration**: Target-based service management
-- ✅ **Docker build environment**: Consistent builds
-- ✅ **Security hardening**: Non-root user, restricted permissions
-- ✅ **Health checks**: Built-in monitoring endpoints
-- ✅ **Graceful shutdown**: Proper signal handling
-- ✅ **Extensible architecture**: Easy to add new APIs
-
-## Development
-
-### Local Development
-
-```bash
-# Build and test locally
-make build
-
-# Check RPM contents
-rpm -qlp dist/my-service-1.0.0-1.x86_64.rpm
-
-# Test installation in container
-docker run -it --rm -v $(pwd)/dist:/dist rockylinux:9 bash
-dnf install nginx
-rpm -ivh /dist/my-service-1.0.0-1.x86_64.rpm
-```
-
-### Build Dependencies
-
-- Docker (for build environment)
-- Go 1.21+ (for application compilation)
-- Rocky Linux 9 (build environment)
-

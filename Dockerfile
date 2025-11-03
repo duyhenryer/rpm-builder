@@ -37,3 +37,4 @@ USER builder
 
 # Default command
 CMD ["/bin/bash"]
+

@@ -1,8 +1,0 @@
-[Unit]
-Description=My Service Infrastructure
-After=network.target nginx.service
-Requires=nginx.service
-PartOf=my-service-all.target
-
-[Install]
-WantedBy=multi-user.target
