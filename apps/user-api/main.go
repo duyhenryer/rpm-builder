@@ -19,16 +19,16 @@ func main() {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"status":"ok","service":"checkout-api","timestamp":"`+time.Now().Format(time.RFC3339)+`"}`)
+		fmt.Fprint(w, `{"status":"ok","service":"user-api","timestamp":"`+time.Now().Format(time.RFC3339)+`"}`)
 		log.Printf("Health check requested from %s", r.RemoteAddr)
 	})
 	
-	// Checkout endpoint
-	mux.HandleFunc("/checkout", func(w http.ResponseWriter, r *http.Request) {
+	// User endpoint
+	mux.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"message":"Checkout API - Ready to process orders!","service":"checkout-api"}`)
-		log.Printf("Checkout requested from %s", r.RemoteAddr)
+		fmt.Fprint(w, `{"message":"User API - User management service!","service":"user-api"}`)
+		log.Printf("User endpoint requested from %s", r.RemoteAddr)
 	})
 	
 	// Main endpoint
@@ -38,7 +38,7 @@ func main() {
 		fmt.Fprint(w, `<!DOCTYPE html>
 <html>
 <head>
-    <title>Checkout API</title>
+    <title>User API</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; }
         .container { max-width: 600px; margin: 0 auto; }
@@ -47,14 +47,14 @@ func main() {
 </head>
 <body>
     <div class="container">
-        <h1>Checkout API</h1>
+        <h1>User API</h1>
         <p class="status">✅ Service is running</p>
         <p>Timestamp: `+time.Now().Format(time.RFC3339)+`</p>
         <p>Server: `+r.Host+`</p>
         <p>Path: `+r.URL.Path+`</p>
         <hr>
         <p><a href="/health">Health Check</a></p>
-        <p><a href="/checkout">Checkout Endpoint</a></p>
+        <p><a href="/user">User Endpoint</a></p>
     </div>
 </body>
 </html>`)
@@ -62,7 +62,7 @@ func main() {
 	})
 	
 	server := &http.Server{
-		Addr:    ":8081",
+		Addr:    ":8080",
 		Handler: mux,
 	}
 	
@@ -84,13 +84,14 @@ func main() {
 		}
 	}()
 	
-	log.Println("Starting Checkout API server on :8081")
+	log.Println("Starting User API server on :8080")
 	log.Println("Endpoints available:")
 	log.Println("  GET /        - Main page")
 	log.Println("  GET /health  - Health check")
-	log.Println("  GET /checkout - Checkout endpoint")
+	log.Println("  GET /user    - User endpoint")
 	
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatalf("Server error: %v", err)
 	}
 }
+
