@@ -2,102 +2,138 @@ name: Build RPM Package
 
 on:
   push:
-    branches: [ main, develop ]
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
-env:
-  GO_VERSION: '1.21'
-
 jobs:
-  build:
-    name: Build RPM
+  build-rpm:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Build Docker image
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+
+    - name: Build Go binaries
       run: |
-        docker build -t rpm-builder:latest .
+        echo "🚀 Building Micro Platform binaries..."
         
-    - name: Build RPM
+        # Auto-detect services in repo/ directory
+        services=()
+        for dir in repo/*/; do
+            if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
+                service_name=$(basename "$dir")
+                services+=("$service_name")
+            fi
+        done
+        
+        if [ ${#services[@]} -eq 0 ]; then
+            echo "❌ Error: No services found in repo/ directory!"
+            exit 1
+        fi
+        
+        echo "🔍 Found services: ${services[*]}"
+        
+        # Build each service
+        for service in "${services[@]}"; do
+            echo "🔨 Building $service from repo/$service/..."
+            cd "repo/$service"
+            go mod tidy
+            go build -o "$service" main.go
+            cd ../..
+            echo "✅ $service built successfully"
+        done
+
+    - name: Copy binaries to apps/
       run: |
-        chmod +x scripts/build.sh
-        ./scripts/build.sh
+        echo "📦 Copying binaries to apps/..."
         
-    - name: List built RPMs
+        services=()
+        for dir in repo/*/; do
+            if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
+                service_name=$(basename "$dir")
+                services+=("$service_name")
+            fi
+        done
+        
+        for service in "${services[@]}"; do
+            echo "📦 Copying $service binary to apps/$service/..."
+            mkdir -p "apps/$service"
+            if [ -f "repo/$service/$service" ]; then
+                cp "repo/$service/$service" "apps/$service/"
+            fi
+        done
+
+    - name: Prepare RPM SOURCES
       run: |
-        echo "📦 Built RPMs:"
-        ls -la dist/*.rpm
+        echo "📦 Preparing RPM sources..."
+        mkdir -p rpm/SOURCES
         
+        # Auto-detect services
+        services=()
+        for dir in repo/*/; do
+            if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
+                service_name=$(basename "$dir")
+                services+=("$service_name")
+            fi
+        done
+        
+        # Copy binaries
+        for service in "${services[@]}"; do
+            mkdir -p "rpm/SOURCES/$service"
+            if [ -f "apps/$service/$service" ]; then
+                cp "apps/$service/$service" "rpm/SOURCES/$service/"
+            fi
+        done
+        
+        # Copy shared configs
+        mkdir -p rpm/SOURCES/conf
+        cp apps/conf-shared/*.properties rpm/SOURCES/conf/ 2>/dev/null || true
+        chmod 644 rpm/SOURCES/conf/*.properties 2>/dev/null || true
+        
+        # Copy app-specific configs
+        for service in "${services[@]}"; do
+            if [ -f "apps/$service/$service.properties" ]; then
+                cp "apps/$service/$service.properties" "rpm/SOURCES/$service/"
+                chmod 644 "rpm/SOURCES/$service/$service.properties"
+            fi
+        done
+        
+        # Copy infrastructure configs
+        cp infra/nginx/micro-platform.conf rpm/SOURCES/ 2>/dev/null || true
+        cp infra/redis/micro-platform-redis.conf rpm/SOURCES/ 2>/dev/null || true
+        
+        # Copy systemd service files
+        cp rpm/files/systemd/* rpm/SOURCES/ 2>/dev/null || true
+
+    - name: Build RPM package
+      id: rpm_build
+      uses: naveenrajm7/rpmbuild@master
+      with:
+        spec_file: "rpm/specs/micro-platform.spec"
+
     - name: Upload RPM artifacts
       uses: actions/upload-artifact@v4
       with:
         name: rpm-packages
-        path: dist/*.rpm
-        retention-days: 5
+        path: ${{ steps.rpm_build.outputs.rpm_dir_path }}
+        retention-days: 30
 
-  # release:
-  #   name: Create Release
-  #   runs-on: ubuntu-latest
-  #   needs: [build, test]
-  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-  #   steps:
-  #   - name: Checkout code
-  #     uses: actions/checkout@v4
-      
-  #   - name: Download RPM artifacts
-  #     uses: actions/download-artifact@v3
-  #     with:
-  #       name: rpm-packages
-  #       path: dist/
-        
-    # - name: Create Release
-    #   uses: softprops/action-gh-release@v1
-    #   with:
-    #     files: dist/*.rpm
-    #     tag_name: v${{ github.run_number }}
-    #     name: Release v${{ github.run_number }}
-    #     body: |
-    #       ## RPM Package
-          
-    #       This release contains the Micro Platform RPM package:
-          
-    #       - **user-api**: User management API (port 8080)
-    #       - **checkout-api**: Checkout API (port 8081)
-    #       - **nginx**: Reverse proxy configuration (port 80)
-          
-    #       ### Installation
-          
-    #       ```bash
-    #       # Install the package (auto-installs nginx)
-    #       dnf install micro-platform-*.rpm
-          
-    #       # Start services
-    #       systemctl start micro-platform-all.target
-          
-    #       # Access the application
-    #       curl http://localhost/
-    #       curl http://localhost/user/
-    #       curl http://localhost/checkout/
-    #       curl http://localhost/health
-    #       ```
-          
-    #       ### Features
-          
-    #       - ✅ Multiple Go HTTP servers with health checks
-    #       - ✅ Nginx reverse proxy configuration
-    #       - ✅ Systemd target orchestration
-    #       - ✅ Simple installation and management
-    #       - ✅ Production-ready configuration
-    #     draft: false
-    #     prerelease: false
-    #   env:
-    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload Source RPM artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: source-rpm
+        path: ${{ steps.rpm_build.outputs.source_rpm_path }}
+        retention-days: 30
