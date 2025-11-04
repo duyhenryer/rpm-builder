@@ -53,23 +53,26 @@ jobs:
             service=$(basename "$dir")
             mkdir -p "apps/$service"
             mkdir -p "rpm/SOURCES/$service"
-            [ -f "repo/$service/$service" ] && cp "repo/$service/$service" "apps/$service/"
-            [ -f "apps/$service/$service" ] && cp "apps/$service/$service" "rpm/SOURCES/$service/"
+            if [ -f "repo/$service/$service" ]; then
+                cp "repo/$service/$service" "apps/$service/"
+                cp "apps/$service/$service" "rpm/SOURCES/$service/"
+            fi
         done
         
         # Copy configs and systemd files
         mkdir -p rpm/SOURCES/conf
         cp apps/conf-shared/*.properties rpm/SOURCES/conf/
         for dir in apps/*/; do
+            [ -d "$dir" ] || continue
             service=$(basename "$dir")
-            [ -f "apps/$service/$service.properties" ] && cp "apps/$service/$service.properties" "rpm/SOURCES/$service/"
+            [ -f "apps/$service/$service.properties" ] && cp "apps/$service/$service.properties" "rpm/SOURCES/$service/" || true
         done
         cp infra/nginx/micro-platform.conf rpm/SOURCES/
         cp infra/redis/micro-platform-redis.conf rpm/SOURCES/
         cp rpm/files/systemd/* rpm/SOURCES/
         
         # Verify
-        echo "Binaries:" && ls rpm/SOURCES/*/
+        find rpm/SOURCES -type f
 
     - name: Build RPM
       run: |
