@@ -94,21 +94,36 @@ jobs:
         cp rpm/files/systemd/* rpm/SOURCES/ 2>/dev/null || true
 
     - name: Build RPM package
-      id: rpm_build
-      uses: naveenrajm7/rpmbuild@master
-      with:
-        spec_file: "rpm/specs/micro-platform.spec"
+      run: |
+        echo "📦 Building RPM package..."
+        
+        # Install rpmbuild in container
+        docker run --rm \
+          -v "${{ github.workspace }}/rpm/SOURCES:/workspace/SOURCES:ro" \
+          -v "${{ github.workspace }}/rpm/specs:/workspace/specs:ro" \
+          -v "${{ github.workspace }}/dist:/workspace/dist" \
+          -w /workspace \
+          rockylinux:9 \
+          bash -c "
+            dnf install -y rpm-build || yum install -y rpm-build || true
+            rpmbuild -bb \
+              --define '_sourcedir /workspace/SOURCES' \
+              --define '_specdir /workspace/specs' \
+              --define '_builddir /workspace/BUILD' \
+              --define '_srcrpmdir /workspace/SRPMS' \
+              --define '_rpmdir /workspace/RPMS' \
+              --define '_buildrootdir /workspace/BUILDROOT' \
+              /workspace/specs/micro-platform.spec
+            find /workspace/RPMS -name '*.rpm' -exec cp {} /workspace/dist/ \;
+          "
+        
+        echo "✅ RPM built:"
+        ls -la dist/*.rpm || true
 
     - name: Upload RPM artifacts
       uses: actions/upload-artifact@v4
       with:
         name: rpm-packages
-        path: ${{ steps.rpm_build.outputs.rpm_dir_path }}
+        path: dist/*.rpm
         retention-days: 30
-
-    - name: Upload Source RPM artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: source-rpm
-        path: ${{ steps.rpm_build.outputs.source_rpm_path }}
-        retention-days: 30
+        if-no-files-found: error
