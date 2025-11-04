@@ -31,5 +31,5 @@ clean:
 	@rm -rf dist/
 	@rm -rf build/
 	@rm -rf rpm/BUILD rpm/BUILDROOT rpm/RPMS rpm/SRPMS rpm/SOURCES
-	@rm -f apps/*/user-api apps/*/checkout-api apps/*/voter-api
+	@rm -f apps/user-api/user-api apps/checkout-api/checkout-api apps/voter-api/voter-api apps/api-server/api-server
 	@echo "✅ Cleanup completed!"
