@@ -44,13 +44,15 @@ jobs:
     - name: Prepare RPM sources
       run: |
         echo "📦 Preparing sources..."
+        rm -rf rpm/SOURCES
         mkdir -p rpm/SOURCES
         
         # Copy binaries
         for dir in repo/*/; do
             [ -d "$dir" ] || continue
             service=$(basename "$dir")
-            mkdir -p "apps/$service" "rpm/SOURCES/$service"
+            mkdir -p "apps/$service"
+            mkdir -p "rpm/SOURCES/$service"
             [ -f "repo/$service/$service" ] && cp "repo/$service/$service" "apps/$service/"
             [ -f "apps/$service/$service" ] && cp "apps/$service/$service" "rpm/SOURCES/$service/"
         done
