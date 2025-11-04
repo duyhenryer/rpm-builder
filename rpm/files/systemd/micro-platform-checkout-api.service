@@ -9,6 +9,17 @@ Type=exec
 User=nobody
 Group=nobody
 WorkingDirectory=/opt/micro-platform/apps/checkout-api
+
+# Load shared configurations first
+EnvironmentFile=/opt/micro-platform/apps/conf-shared/env.properties
+EnvironmentFile=/opt/micro-platform/apps/conf-shared/redis.properties
+
+# Load app-specific configuration (can override shared)
+EnvironmentFile=/opt/micro-platform/apps/checkout-api/checkout-api.properties
+
+# Optional override file (won't fail if missing)
+EnvironmentFile=-/opt/micro-platform/apps/checkout-api/checkout-api.override
+
 ExecStart=/opt/micro-platform/apps/checkout-api/checkout-api
 Restart=always
 RestartSec=10

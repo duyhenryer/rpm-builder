@@ -1,47 +1,123 @@
 #!/bin/bash
 
+# ============================================================================
 # Build Single RPM Script
-# Builds all Go apps and creates ONE RPM package
+# ============================================================================
+# Quy trình build:
+#   1. Build binary từ repo/api-server/ (source code)
+#   2. Copy binary vào apps/api-server/ (staging)
+#   3. Copy TẤT CẢ files vào rpm/SOURCES/ (RPM input)
+#   4. Build RPM trong Docker container
+#   5. Output: dist/micro-platform-*.rpm
+# ============================================================================
 
 set -e
 
 echo "🚀 Building Micro Platform..."
 
-# Create dist directory
-mkdir -p dist
+# ============================================================================
+# STEP 1: Build Binaries từ Source Code cho TẤT CẢ Services có sẵn trong repo/
+# ============================================================================
+# Input:  repo/{service}/ (source code - có sẵn trong repo/)
+# Output: repo/{service}/{service} (binary file cho mỗi service)
+# 
+# NOTE: Script tự động detect và build các service có trong repo/
+#       Chỉ build những service có code sẵn, không cần clone
+# ============================================================================
+echo "📝 Building all services from repo/..."
 
-# Build all Go applications
-# Array of applications to build (easy to maintain and extend)
-apps=("user-api" "checkout-api" "voter-api")
-
-echo "📝 Building Go applications..."
-for app in "${apps[@]}"; do
-    echo "  Building $app..."
-    cd "apps/$app"
-    go mod tidy
-    go build -o "$app" main.go
-    mkdir -p ../../build/bin
-    mv "$app" ../../build/bin/
-    cd ../..
+# Auto-detect services in repo/ directory
+services=()
+for dir in repo/*/; do
+    if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
+        service_name=$(basename "$dir")
+        services+=("$service_name")
+    fi
 done
 
-# Create SOURCES directory
+if [ ${#services[@]} -eq 0 ]; then
+    echo "❌ Error: No services found in repo/ directory!"
+    echo "   Please add service code in repo/{service-name}/ with main.go"
+    exit 1
+fi
+
+echo "🔍 Found services: ${services[*]}"
+
+# Build each service
+for service in "${services[@]}"; do
+    echo "🔨 Building $service from repo/$service/..."
+    
+    cd "repo/$service"
+    go mod tidy
+    go build -o "$service" main.go
+    cd ../..
+    
+    echo "✅ $service built successfully"
+done
+
+# ============================================================================
+# STEP 2: Copy Binaries vào apps/ (Staging Area)
+# ============================================================================
+# Input:  repo/{service}/{service} (binary)
+# Output: apps/{service}/{service} (binary)
+# ============================================================================
+echo "📦 Copying binaries to apps/..."
+
+for service in "${services[@]}"; do
+    echo "📦 Copying $service binary to apps/$service/..."
+    mkdir -p "apps/$service"
+    cp "repo/$service/$service" "apps/$service/"
+done
+
+# ============================================================================
+# STEP 3: Prepare RPM SOURCES - Copy TẤT CẢ files cần thiết
+# ============================================================================
+# RPM cần tất cả files trong rpm/SOURCES/ để build
+# Files này sẽ được đọc bởi rpm/specs/micro-platform.spec
+# ============================================================================
+echo "📦 Preparing RPM sources..."
+# Clean previous build artifacts
+rm -rf rpm/SOURCES/*
 mkdir -p rpm/SOURCES
 
-# Copy all binaries to SOURCES
-echo "📦 Preparing RPM sources..."
-cp build/bin/* rpm/SOURCES/
+# 3.1: Binaries (từ apps/{service}/)
+for service in "${services[@]}"; do
+    mkdir -p "rpm/SOURCES/$service" || true
+    if [ -f "apps/$service/$service" ]; then
+        cp "apps/$service/$service" "rpm/SOURCES/$service/"
+    fi
+done
 
-# Copy nginx config
+# 3.2: Shared configs (từ apps/conf-shared/)
+mkdir -p rpm/SOURCES/conf
+cp apps/conf-shared/*.properties rpm/SOURCES/conf/
+# Fix permissions: remove executable bit from .properties files
+chmod 644 rpm/SOURCES/conf/*.properties
+
+# 3.3: App-specific configs (từ apps/{service}/)
+for service in "${services[@]}"; do
+    # Directory already created in 3.1, just copy config
+    if [ -f "apps/$service/$service.properties" ]; then
+        cp "apps/$service/$service.properties" "rpm/SOURCES/$service/"
+        # Fix permissions: remove executable bit
+        chmod 644 "rpm/SOURCES/$service/$service.properties"
+    fi
+done
+
+# 3.4: Infrastructure configs (từ infra/)
 cp infra/nginx/micro-platform.conf rpm/SOURCES/
-
-# Copy redis config
 cp infra/redis/micro-platform-redis.conf rpm/SOURCES/
 
-# Copy systemd files
+# 3.5: Systemd service files (từ rpm/files/systemd/)
 cp rpm/files/systemd/* rpm/SOURCES/
 
-# Build RPM in Docker
+# ============================================================================
+# STEP 4: Build RPM trong Docker Container
+# ============================================================================
+# Input:  rpm/SOURCES/ (tất cả files)
+#         rpm/specs/micro-platform.spec (RPM specification)
+# Output: dist/micro-platform-*.rpm (RPM package)
+# ============================================================================
 echo "📦 Building single RPM..."
 docker run --rm \
     -v "$(pwd)/rpm/SOURCES:/workspace/SOURCES" \
