@@ -104,59 +104,24 @@ micro-platform-all.target (Master orchestrator)
 | checkout-api | 8081 | Direct API access |
 | voter-api | 8082 | Direct API access |
 
-### URL Routing
-
-| URL | Target | Description |
-|-----|--------|-------------|
-| `http://server/` | JSON API info | Platform status and available APIs |
-| `http://server/user/` | user-api | Via nginx proxy |
-| `http://server/checkout/` | checkout-api | Via nginx proxy |
-| `http://server/vote/` | voter-api | Via nginx proxy |
-| `http://server/health` | Nginx health | Platform health check |
-| `http://server:8080/` | user-api | Direct access |
-| `http://server:8081/` | checkout-api | Direct access |
-| `http://server:8082/` | voter-api | Direct access |
 
 ### How Dependencies Work
 
 **With dnf/yum (Recommended):**
 ```bash
 dnf install micro-platform-1.0.0-1.x86_64.rpm
-# ✅ Automatically installs nginx, redis, and all dependencies
+# Automatically installs nginx, redis, and all dependencies
 ```
-
-**With rpm directly:**
-```bash
-rpm -ivh micro-platform-1.0.0-1.x86_64.rpm
-# ❌ Fails if dependencies not installed
-# error: Failed dependencies: nginx >= 1.20 is needed, redis >= 6.0 is needed
-```
-
 
 ## Installation & Usage
 
-## Installation Methods
+## Installation
 
-### Method 1: Using dnf (Recommended - Auto Install Dependencies)
+### Using dnf (Recommended - Auto Install Dependencies)
 
 ```bash
 # Single command - nginx installed automatically
 dnf install dist/micro-platform-1.0.0-1.x86_64.rpm
-```
-
-✅ **Advantages:**
-- Automatically installs nginx and redis if not present
-- Resolves all dependencies automatically
-- Same behavior as mem-devops project
-
-### Method 2: Using rpm (Manual Dependency Management)
-
-```bash
-# Step 1: Install dependencies manually first
-dnf install nginx redis
-
-# Step 2: Install RPM
-rpm -ivh dist/micro-platform-1.0.0-1.x86_64.rpm
 ```
 
 ✅ **Advantages:**
@@ -194,18 +159,6 @@ journalctl -u micro-platform-voter-api.service
 journalctl -u redis.service
 journalctl -u nginx.service
 ```
-
-### Access Services
-
-After installation, services are available at:
-
-- **Platform Landing**: `http://server/`
-- **User API (via nginx)**: `http://server/user/`
-- **Checkout API (via nginx)**: `http://server/checkout/`
-- **Voter API (via nginx)**: `http://server/vote/`
-- **Health Check**: `http://server/health`
-- **Direct APIs**: `http://server:8080/`, `http://server:8081/`, `http://server:8082/`
-- **Redis**: `localhost:6379` (local access only)
 
 ## File Locations After Install
 
