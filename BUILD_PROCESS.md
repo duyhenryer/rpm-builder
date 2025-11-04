@@ -156,3 +156,5 @@ dist/
 - Each service has its own binary in `apps/{service}/`
 - RPM spec only handles: user-api, checkout-api, voter-api (simple and explicit)
 
+## Ref
+- https://www.redhat.com/en/blog/create-rpm-package

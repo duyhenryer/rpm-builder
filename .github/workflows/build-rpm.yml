@@ -27,104 +27,69 @@ jobs:
         go-version: '1.21'
         cache: false
 
-    - name: Build Go binaries
+    - name: Build binaries
       run: |
-        echo "🚀 Building binaries from repo/..."
-        
-        # Build all services in repo/
+        echo "🚀 Building binaries..."
         for dir in repo/*/; do
             if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
                 service=$(basename "$dir")
-                echo "🔨 Building $service..."
+                echo "🔨 $service..."
                 cd "$dir"
                 go mod tidy
                 go build -o "$service" main.go
                 cd ../..
-                echo "✅ $service built"
             fi
         done
 
-    - name: Copy binaries to apps/
+    - name: Prepare RPM sources
       run: |
-        echo "📦 Copying binaries..."
-        for dir in repo/*/; do
-            if [ -d "$dir" ]; then
-                service=$(basename "$dir")
-                mkdir -p "apps/$service"
-                if [ -f "repo/$service/$service" ]; then
-                    cp "repo/$service/$service" "apps/$service/"
-                fi
-            fi
-        done
-
-    - name: Prepare RPM SOURCES
-      run: |
-        echo "📦 Preparing RPM sources..."
+        echo "📦 Preparing sources..."
         mkdir -p rpm/SOURCES
         
         # Copy binaries
-        for dir in apps/*/; do
-            if [ -d "$dir" ]; then
-                service=$(basename "$dir")
-                mkdir -p "rpm/SOURCES/$service"
-                if [ -f "apps/$service/$service" ]; then
-                    cp "apps/$service/$service" "rpm/SOURCES/$service/"
-                fi
-            fi
+        for dir in repo/*/; do
+            [ -d "$dir" ] || continue
+            service=$(basename "$dir")
+            mkdir -p "apps/$service" "rpm/SOURCES/$service"
+            [ -f "repo/$service/$service" ] && cp "repo/$service/$service" "apps/$service/"
+            [ -f "apps/$service/$service" ] && cp "apps/$service/$service" "rpm/SOURCES/$service/"
         done
         
-        # Copy configs
+        # Copy configs and systemd files
         mkdir -p rpm/SOURCES/conf
-        cp apps/conf-shared/*.properties rpm/SOURCES/conf/ 2>/dev/null || true
-        chmod 644 rpm/SOURCES/conf/*.properties 2>/dev/null || true
-        
-        for dir in apps/*/; do
-            if [ -d "$dir" ]; then
-                service=$(basename "$dir")
-                if [ -f "apps/$service/$service.properties" ]; then
-                    cp "apps/$service/$service.properties" "rpm/SOURCES/$service/"
-                    chmod 644 "rpm/SOURCES/$service/$service.properties"
-                fi
-            fi
-        done
-        
-        # Copy infrastructure and systemd files
-        cp infra/nginx/micro-platform.conf rpm/SOURCES/ 2>/dev/null || true
-        cp infra/redis/micro-platform-redis.conf rpm/SOURCES/ 2>/dev/null || true
-        cp rpm/files/systemd/* rpm/SOURCES/ 2>/dev/null || true
+        cp apps/conf-shared/*.properties rpm/SOURCES/conf/
+        cp apps/*/*.properties rpm/SOURCES/*/  2>/dev/null || true
+        cp infra/nginx/micro-platform.conf rpm/SOURCES/
+        cp infra/redis/micro-platform-redis.conf rpm/SOURCES/
+        cp rpm/files/systemd/* rpm/SOURCES/
 
-    - name: Build RPM package
+    - name: Build RPM
       run: |
-        echo "📦 Building RPM package..."
+        echo "📦 Building RPM..."
         mkdir -p dist
-        
-        # Build RPM in container (binaries already built, skip dependency checks)
         docker run --rm \
-          -v "${{ github.workspace }}/rpm/SOURCES:/workspace/SOURCES:ro" \
-          -v "${{ github.workspace }}/rpm/specs:/workspace/specs:ro" \
+          -v "${{ github.workspace }}/rpm/SOURCES:/workspace/SOURCES" \
+          -v "${{ github.workspace }}/rpm/specs:/workspace/specs" \
           -v "${{ github.workspace }}/dist:/workspace/dist" \
           -w /workspace \
           rockylinux:9 \
-          bash -c "
-            dnf install -y rpm-build || yum install -y rpm-build || true
+          bash -c '
+            dnf install -y rpm-build
             rpmbuild -bb --nodeps \
-              --define '_sourcedir /workspace/SOURCES' \
-              --define '_specdir /workspace/specs' \
-              --define '_builddir /workspace/BUILD' \
-              --define '_srcrpmdir /workspace/SRPMS' \
-              --define '_rpmdir /workspace/RPMS' \
-              --define '_buildrootdir /workspace/BUILDROOT' \
+              --define "_sourcedir /workspace/SOURCES" \
+              --define "_specdir /workspace/specs" \
+              --define "_builddir /workspace/BUILD" \
+              --define "_srcrpmdir /workspace/SRPMS" \
+              --define "_rpmdir /workspace/RPMS" \
+              --define "_buildrootdir /workspace/BUILDROOT" \
               /workspace/specs/micro-platform.spec
-            find /workspace/RPMS -name '*.rpm' -exec cp {} /workspace/dist/ \;
-          "
-        
-        echo "✅ RPM built:"
-        ls -la dist/*.rpm || true
+            find /workspace/RPMS -name "*.rpm" -exec cp {} /workspace/dist/ \;
+          '
+        ls -la dist/*.rpm
 
-    - name: Upload RPM artifacts
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: rpm-packages
         path: dist/*.rpm
         retention-days: 30
-        if-no-files-found: error
