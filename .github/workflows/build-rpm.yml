@@ -58,10 +58,16 @@ jobs:
         # Copy configs and systemd files
         mkdir -p rpm/SOURCES/conf
         cp apps/conf-shared/*.properties rpm/SOURCES/conf/
-        cp apps/*/*.properties rpm/SOURCES/*/  2>/dev/null || true
+        for dir in apps/*/; do
+            service=$(basename "$dir")
+            [ -f "apps/$service/$service.properties" ] && cp "apps/$service/$service.properties" "rpm/SOURCES/$service/"
+        done
         cp infra/nginx/micro-platform.conf rpm/SOURCES/
         cp infra/redis/micro-platform-redis.conf rpm/SOURCES/
         cp rpm/files/systemd/* rpm/SOURCES/
+        
+        # Verify
+        echo "Binaries:" && ls rpm/SOURCES/*/
 
     - name: Build RPM
       run: |
