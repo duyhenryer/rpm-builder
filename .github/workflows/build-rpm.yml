@@ -96,8 +96,9 @@ jobs:
     - name: Build RPM package
       run: |
         echo "📦 Building RPM package..."
+        mkdir -p dist
         
-        # Install rpmbuild in container
+        # Build RPM in container (binaries already built, skip dependency checks)
         docker run --rm \
           -v "${{ github.workspace }}/rpm/SOURCES:/workspace/SOURCES:ro" \
           -v "${{ github.workspace }}/rpm/specs:/workspace/specs:ro" \
@@ -106,7 +107,7 @@ jobs:
           rockylinux:9 \
           bash -c "
             dnf install -y rpm-build || yum install -y rpm-build || true
-            rpmbuild -bb \
+            rpmbuild -bb --nodeps \
               --define '_sourcedir /workspace/SOURCES' \
               --define '_specdir /workspace/specs' \
               --define '_builddir /workspace/BUILD' \
