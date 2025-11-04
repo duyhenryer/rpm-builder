@@ -8,7 +8,7 @@ rpm/SRPMS/
 rpm/SOURCES/
 
 # Source code repos (cloned from GitHub)
-repo/
+# repo/
 
 # App binaries (built artifacts - will be generated during build)
 apps/api-server/api-server
