@@ -25,55 +25,35 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.21'
-        cache: false  # Disable cache since we have multiple go.mod files in subdirectories
+        cache: false
 
     - name: Build Go binaries
       run: |
-        echo "🚀 Building Micro Platform binaries..."
+        echo "🚀 Building binaries from repo/..."
         
-        # Auto-detect services in repo/ directory
-        services=()
+        # Build all services in repo/
         for dir in repo/*/; do
             if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
-                service_name=$(basename "$dir")
-                services+=("$service_name")
+                service=$(basename "$dir")
+                echo "🔨 Building $service..."
+                cd "$dir"
+                go mod tidy
+                go build -o "$service" main.go
+                cd ../..
+                echo "✅ $service built"
             fi
-        done
-        
-        if [ ${#services[@]} -eq 0 ]; then
-            echo "❌ Error: No services found in repo/ directory!"
-            exit 1
-        fi
-        
-        echo "🔍 Found services: ${services[*]}"
-        
-        # Build each service
-        for service in "${services[@]}"; do
-            echo "🔨 Building $service from repo/$service/..."
-            cd "repo/$service"
-            go mod tidy
-            go build -o "$service" main.go
-            cd ../..
-            echo "✅ $service built successfully"
         done
 
     - name: Copy binaries to apps/
       run: |
-        echo "📦 Copying binaries to apps/..."
-        
-        services=()
+        echo "📦 Copying binaries..."
         for dir in repo/*/; do
-            if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
-                service_name=$(basename "$dir")
-                services+=("$service_name")
-            fi
-        done
-        
-        for service in "${services[@]}"; do
-            echo "📦 Copying $service binary to apps/$service/..."
-            mkdir -p "apps/$service"
-            if [ -f "repo/$service/$service" ]; then
-                cp "repo/$service/$service" "apps/$service/"
+            if [ -d "$dir" ]; then
+                service=$(basename "$dir")
+                mkdir -p "apps/$service"
+                if [ -f "repo/$service/$service" ]; then
+                    cp "repo/$service/$service" "apps/$service/"
+                fi
             fi
         done
 
@@ -82,46 +62,36 @@ jobs:
         echo "📦 Preparing RPM sources..."
         mkdir -p rpm/SOURCES
         
-        # Auto-detect services
-        services=()
-        for dir in repo/*/; do
-            if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
-                service_name=$(basename "$dir")
-                services+=("$service_name")
-            fi
-        done
-        
         # Copy binaries
-        for service in "${services[@]}"; do
-            mkdir -p "rpm/SOURCES/$service"
-            if [ -f "apps/$service/$service" ]; then
-                cp "apps/$service/$service" "rpm/SOURCES/$service/"
+        for dir in apps/*/; do
+            if [ -d "$dir" ]; then
+                service=$(basename "$dir")
+                mkdir -p "rpm/SOURCES/$service"
+                if [ -f "apps/$service/$service" ]; then
+                    cp "apps/$service/$service" "rpm/SOURCES/$service/"
+                fi
             fi
         done
         
-        # Copy shared configs
+        # Copy configs
         mkdir -p rpm/SOURCES/conf
         cp apps/conf-shared/*.properties rpm/SOURCES/conf/ 2>/dev/null || true
         chmod 644 rpm/SOURCES/conf/*.properties 2>/dev/null || true
         
-        # Copy app-specific configs
-        for service in "${services[@]}"; do
-            if [ -f "apps/$service/$service.properties" ]; then
-                cp "apps/$service/$service.properties" "rpm/SOURCES/$service/"
-                chmod 644 "rpm/SOURCES/$service/$service.properties"
+        for dir in apps/*/; do
+            if [ -d "$dir" ]; then
+                service=$(basename "$dir")
+                if [ -f "apps/$service/$service.properties" ]; then
+                    cp "apps/$service/$service.properties" "rpm/SOURCES/$service/"
+                    chmod 644 "rpm/SOURCES/$service/$service.properties"
+                fi
             fi
         done
         
-        # Copy infrastructure configs
+        # Copy infrastructure and systemd files
         cp infra/nginx/micro-platform.conf rpm/SOURCES/ 2>/dev/null || true
         cp infra/redis/micro-platform-redis.conf rpm/SOURCES/ 2>/dev/null || true
-        
-        # Copy systemd service files
         cp rpm/files/systemd/* rpm/SOURCES/ 2>/dev/null || true
-        
-        # List prepared SOURCES for verification
-        echo "📋 Prepared SOURCES structure:"
-        find rpm/SOURCES -type f | head -20
 
     - name: Build RPM package
       id: rpm_build
