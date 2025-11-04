@@ -19,19 +19,19 @@ git clone https://github.com/org/voter-api.git repo/voter-api
 
 ## Current Contents (POC)
 
-Code hiện có sẵn trong repo/:
-- `api-server/` - API server source code (code mẫu POC)
-- `user-api/` - User API source code (copy từ api-server)
-- `checkout-api/` - Checkout API source code (copy từ api-server)
-- `voter-api/` - Voter API source code (copy từ api-server)
+Code currently available in `repo/`:
+- `api-server/` - API server source code (POC sample code)
+- `user-api/` - User API source code (copied from `api-server`)
+- `checkout-api/` - Checkout API source code (copied from `api-server`)
+- `voter-api/` - Voter API source code (copied from `api-server`)
 
-**Lưu ý**: Trong production, mỗi service nên clone từ GitHub repository riêng.
+**Note**: In production, each service should be cloned from its own GitHub repository.
 
 ## Build Process
 
 The build script (`scripts/build.sh`) will:
-1. **Auto-detect** tất cả services có `main.go` trong `repo/`
-2. **Build binaries** từ mỗi `repo/{service}/`:
+1. **Auto-detect** all services that have `main.go` in `repo/`
+2. **Build binaries** from each `repo/{service}/`:
    - `repo/api-server/` → `repo/api-server/api-server` (binary)
    - `repo/user-api/` → `repo/user-api/user-api` (binary)
    - `repo/checkout-api/` → `repo/checkout-api/checkout-api` (binary)
@@ -40,7 +40,7 @@ The build script (`scripts/build.sh`) will:
 4. **Copy everything** (binaries + configs) to `rpm/SOURCES/` (RPM input)
 5. **Build RPM** in Docker container → `dist/micro-platform-*.rpm`
 
-**Lưu ý**: RPM spec chỉ handle `user-api`, `checkout-api`, `voter-api` (đơn giản, tường minh)
+**Note**: The RPM spec only handles `user-api`, `checkout-api`, and `voter-api` (simple and explicit)
 
 ## Important Notes
 
